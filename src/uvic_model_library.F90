@@ -1,6 +1,10 @@
 module uvic_model_library
 
    use fabm_types, only: type_base_model_factory, type_base_model
+   
+   use uvic_tracer
+   use uvic_phytoplankton
+   use uvic_zooplankton
 
    implicit none
 
@@ -21,6 +25,9 @@ contains
       class (type_base_model), pointer :: model
 
       select case (name)
+         case ('tracer');            allocate(type_uvic_tracer::model)
+         case ('phytoplankton');     allocate(type_uvic_phytoplankton::model) 
+         case ('zooplankton');       allocate(type_uvic_zooplankton::model) 
          case default
             call self%type_base_model_factory%create(name, model)
       end select
