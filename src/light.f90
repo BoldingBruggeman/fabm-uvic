@@ -73,10 +73,10 @@ contains
          
          ztt  = -1._rk*(depth+dzt*0.5_rk) !check sign of depth
          phin = phyt*dzt
-         f1 = -self%kw - self%kc*phyt
+         f1 = (-self%kw - self%kc*phyt)
          
          _SET_DIAGNOSTIC_(self%id_sw_par,sw_par)
          _SET_DIAGNOSTIC_(self%id_f1,f1)
       _DOWNWARD_LOOP_END_
-    end subroutine do
+    end subroutine do_column
 end module

@@ -1,7 +1,11 @@
 add_library(fabm_models_uvic OBJECT
             uvic_model_library.F90
-			tracer.F90
+			detritus.F90
+			light.F90
+            nut_chem.F90
 			phytoplankton.F90
+			shared.F90
+			solar.F90
             zooplankton.F90
            )
 
