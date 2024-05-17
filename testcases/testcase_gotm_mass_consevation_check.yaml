@@ -1,0 +1,133 @@
+check_conservation: true
+instances:
+  nut_chem:
+    model: uvic/nut_chem
+    parameters:
+      nitrogen: true
+      dcaco3: 650000.0
+      rstd: 1.176e-12
+    initialization:
+      o2: 200.0
+      p: 2.5
+      DIC: 2.3
+      alkalinity: 2.4
+      c14: 1e-12
+      no3: 30.0
+  detritus:
+    model: uvic/detritus
+    parameters:
+      o2_sens: true
+      nitrogen: true
+      no3_sens: true
+      no_temp_sens: false
+      bbio: 1.066
+      cbio: 1.0
+      nud0: 0.5
+      wd0: 6.0
+    initialization:
+      detritus: 0.001
+    coupling:
+      o2: nut_chem/o2_dummy
+      p: nut_chem/phosphorus_dummy
+      no3: nut_chem/no3
+  light:
+    model: uvic/light
+    parameters:
+      kc: 0.047
+      kw: 0.04
+      par: 0.43
+    coupling:
+      rctheta: solar/rctheta
+  phytoplankton:
+    model: uvic/phytoplankton
+    parameters:
+      alpha: 0.1
+      k1n: 0.7
+      nup: 0.025
+      nupt0: 0.02
+      capr: 0.018
+      nitrogen: true
+      nfix: false
+      extra_diags: true
+      abio: 0.18
+      no_temp_sens: false
+      bbio: 1.066
+      cbio: 1.0
+      fe_limitation: false
+      cdom_attenuation: false
+    initialization:
+      phytoplankton: 0.001
+    coupling:
+      sw_par: light/sw_par
+      f1: light/f1
+      dayfrac: solar/dayfrac
+      p: nut_chem/phosphorus_dummy
+      detritus: detritus/detritus
+      oxygen: nut_chem/o2_dummy
+      alkalinity: nut_chem/alkalinity
+      calcite_detritus: nut_chem/calc_dummy
+      no3: nut_chem/no3
+  diazotrophs:
+    model: uvic/phytoplankton
+    parameters:
+      alpha: 0.1
+      k1n: 0.7
+      nup: 0.025
+      nupt0: 0.02
+      capr: 0.018
+      nitrogen: true
+      nfix: true
+      jdiar: 0.5
+      extra_diags: true
+      abio: 0.18
+      no_temp_sens: false
+      bbio: 1.066
+      cbio: 1.0
+      fe_limitation: false
+      cdom_attenuation: false
+    initialization:
+      phytoplankton: 0.03
+    coupling:
+      sw_par: light/sw_par
+      f1: light/f1
+      dayfrac: solar/dayfrac
+      p: nut_chem/phosphorus_dummy
+      detritus: detritus/detritus
+      oxygen: nut_chem/o2_dummy
+      alkalinity: nut_chem/alkalinity
+      calcite_detritus: nut_chem/calc_dummy
+      no3: nut_chem/no3
+  solar:
+    model: uvic/solar
+  zooplankton:
+    model: uvic/zooplankton
+    parameters:
+      extra_diags: true
+      no_temp_sens: false
+      bbio: 1.066
+      cbio: 1.0
+      graz_upper_temp_limit: true
+      nitrogen: true
+      gbio: 0.18
+      nprey: 4
+      nu: 0.34
+      gamma1: 0.7
+      geZ: 0.5
+      kzoo: 0.15
+      capr: 0.018
+      zpref1: 0.3
+      zpref2: 0.3
+      zpref3: 0.3
+      zpref4: 0.1
+    initialization:
+      zoop: 0.0005
+    coupling:
+      prey1: phytoplankton
+      prey2: zooplankton
+      prey3: detritus
+      prey4: diazotrophs
+      p: nut_chem/phosphorus_dummy
+      detritus: detritus/detritus
+      o2: nut_chem/o2_dummy
+      calcite_detritus: nut_chem/calc_dummy
+      no3: nut_chem/no3

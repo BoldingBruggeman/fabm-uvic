@@ -11,7 +11,7 @@ module uvic_zooplankton
    private
 
    type, extends(type_particle_model), public :: type_uvic_zooplankton
-      type (type_state_variable_id)                                 :: id_zoop, id_o2, id_phosphorus, id_no3, id_det, id_calc
+      type (type_state_variable_id)                                 :: id_zoop, id_o2, id_oxi, id_phosphorus, id_no3, id_det, id_calc
       type (type_dependency_id)                                     :: id_temp
       type (type_model_id),          allocatable, dimension(:)      :: id_prey
       type (type_state_variable_id), allocatable, dimension(:)      :: id_pbio
@@ -19,7 +19,7 @@ module uvic_zooplankton
       type (type_diagnostic_variable_id), allocatable, dimension(:) :: id_graz_i_out                
       
       
-      real(rk)                            :: gbio, bbio, cbio, nu, gamma1, geZ
+      real(rk)                            :: gbio, bbio, cbio, nu, gamma1, geZ, capr, kzoo
       real(rk), allocatable, dimension(:) :: zpref
       integer                             :: nprey
       logical                             :: no_temp_sens, graz_upper_temp_limit, nitrogen, extra_diags
@@ -34,6 +34,8 @@ contains
       class (type_uvic_zooplankton), intent(inout), target :: self
       integer,                    intent(in)            :: configunit
 
+      integer :: iprey
+      character :: index
       ! parameters
       call self%get_parameter(self%extra_diags,           'extra_diags',           '',                    'turn on extra diagnostic variables',  default=.false.)
       call self%get_parameter(self%no_temp_sens,          'no_temp_sens',          '',                    'turn off temperature sensitivity',    default=.false.)
@@ -49,6 +51,8 @@ contains
       call self%get_parameter(self%nu,                    'nu',                    '(mmol m-3)^(-2) d-1', 'quadratic mortality',                 default=0.34_rk, scale_factor=d_per_s)
       call self%get_parameter(self%gamma1,                'gamma1',                '-',                   'assimilation efficiency',             default=0.7_rk)
       call self%get_parameter(self%geZ,                   'geZ',                   '-',                   'growth efficiency',                   default=0.5_rk)
+      call self%get_parameter(self%kzoo,                  'kzoo',                  'mmol N m-3',          'half sat. constant for Z grazing',    default=0.15_rk)
+      call self%get_parameter(self%capr,                  'capr',                  '-',                   'carbonate to carbon production ratio',default=0.018_rk)
       
       ! prey coupling
       allocate(self%zpref(self%nprey))
@@ -59,23 +63,24 @@ contains
           call self%get_parameter(self%zpref(iprey),      'zpref'//trim(index),    '-',      'preference for prey '//trim(index), default=0.0_rk)
           
           call self%register_model_dependency(self%id_prey(iprey), 'prey'//trim(index))
-          call self%register_state_dependency(self%id_pbio(i_prey), 'pbio'//trim(index), 'mmol N m^-3', 'prey '//trim(index)//' biomass')
-          call self%request_coupling_to_model(self%id_pbio(i_prey), self%id_prey(i_prey), standard_variables%total_nitrogen)
+          call self%register_state_dependency(self%id_pbio(iprey), 'pbio'//trim(index), 'mmol N m^-3', 'prey '//trim(index)//' biomass')
+          call self%request_coupling_to_model(self%id_pbio(iprey), self%id_prey(iprey), standard_variables%total_nitrogen)
       enddo
       
       ! variable registrations
-      call self%register_state_variable(self%id_zoop, 'zoop', 'mmol N m-3', 'zooplankton concentration', minimum=0.0_rk, )
+      call self%register_state_variable(self%id_zoop, 'zoop', 'mmol N m-3', 'zooplankton concentration')
       call self%add_to_aggregate_variable(standard_variables%total_nitrogen, self%id_zoop)
       call self%add_to_aggregate_variable(standard_variables%total_phosphorus, self%id_zoop, scale_factor=redptn)
       
       ! environmental dependencies
       call self%register_dependency(self%id_temp,      standard_variables%temperature)
       call self%register_state_dependency(self%id_o2,         'o2',               'umol O cm-3', 'oxygen concentration')
+      call self%register_state_dependency(self%id_oxi,        'oxi',              'umol cm-3',   'oxidative demand')
       call self%register_state_dependency(self%id_det,        'detritus',         'mmol N m-3',  'detritus concentration')
-      call self%register_state_dependency(self%id_calc,       'calcite detritus', 'umol C cm-3',  'detrital calcite concentration')
+      call self%register_state_dependency(self%id_calc,       'calcite_detritus', 'umol C cm-3',  'detrital calcite concentration')
       call self%register_state_dependency(self%id_phosphorus, 'p',                'mmol P m-3',  'dissolved inorganic phosphorous concentration')
       if (self%nitrogen) then
-          call self%register_state_dependency(self%id_no3, 'n03',     'mmol N m-3',  'dissolved inorganic nitrogen concentration')
+          call self%register_state_dependency(self%id_no3, 'no3',     'mmol N m-3',  'dissolved inorganic nitrogen concentration')
       endif
 
       ! register diagnostic variables for output
@@ -96,8 +101,9 @@ contains
       class (type_uvic_zooplankton), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_
       
-      real(rk)                           :: bctz, zoop, o2, temp, gmax, thetaZ, excr, prey_s, zoop_roc
+      real(rk)                           :: bctz, zoop, o2, temp, gmax, excr, prey_s, zoop_roc, calc_roc, mor, det_roc, zflag, thetaZ
       real(rk),   dimension(self%nPrey)  :: pbio, ing, gs, graz, pflag
+      integer                            :: iprey, istate
       
       _LOOP_BEGIN_
          _GET_(self%id_zoop, zoop)
@@ -108,8 +114,8 @@ contains
              pflag(iprey) = 0.5_rk + sign(0.5_rk,pbio(iprey) - trcmin)
          enddo
          
-         if (no_temp_sens) then
-             if (graz_upper_temp_limit) then
+         if (self%no_temp_sens) then
+             if (self%graz_upper_temp_limit) then
                  bctz = (0.5_rk*(tanh(o2*1000._rk - 8._rk)+1._rk))*3.59_rk
              else
                  bctz = (0.5_rk*(tanh(o2*1000._rk - 8._rk)+1._rk))*3.92_rk
@@ -124,7 +130,7 @@ contains
          if (sum(self%zpref) - 1._rk > 1.e-15_rk) then
              call self%fatal_error('zooplankton', 'prey preferences do not sum up to one')         
          endif
-         thetaZ = sum(self%zpref*pbio) + kzoo
+         thetaZ = sum(self%zpref*pbio) + self%kzoo
          ing = self%zpref/thetaZ
          graz = gmax*ing*pbio*zoop*pflag*zflag
          
@@ -140,16 +146,16 @@ contains
          _ADD_SOURCE_(self%id_zoop, zoop_roc)
          
          do iprey = 1, self%nprey
-             do istate = 1, size(self%id_prey(iprey)%state
-                 _GET_(self%id_prey(iprey)%state(istate), prey_s)
-                 _ADD_SOURCE_(self%id_prey(iprey)%state(istate), - graz(iprey)*prey_s)
+             do istate = 1, size(self%id_prey(iprey)%state)
+!                 _GET_(self%id_prey(iprey)%state(istate), prey_s)
+                 _ADD_SOURCE_(self%id_prey(iprey)%state(istate), - graz(iprey))!*prey_s)
              enddo
          enddo
          _ADD_SOURCE_(self%id_det, det_roc)
          _ADD_SOURCE_(self%id_calc, calc_roc)
          
          _ADD_SOURCE_(self%id_phosphorus,  redptn*excr)
-         _ADD_SOURCE_(self%id_o2,         -excr*redptn*redotp)
+         _ADD_SOURCE_(self%id_oxi,        -excr*redptn*redotp)
          if (self%nitrogen) then
              _ADD_SOURCE_(self%id_no3, excr)
          endif

@@ -11,14 +11,14 @@ module uvic_phytoplankton
    private
 
    type, extends(type_particle_model), public :: type_uvic_phytoplankton
-      type (type_state_variable_id)     :: id_phyt, id_phosphorus, id_no3, id_det, id_o2, id_alk
-      type (type_surface_dependency_id) :: id_fe, id_dayfrac
-      type (type_dependency_id)         :: id_temp, id_depth, id_sw_par, id_f1
-      type (type_global_dependency_id)  :: id_latitude
-      type (type_diagnostic_variable_id):: id_morp_out, id_npp_out, id_morpt_out, id_avej_out, id_no3P_out, id_po4P_out
+      type (type_state_variable_id)         :: id_phyt, id_phosphorus, id_no3, id_det, id_o2, id_oxi, id_alk, id_calc
+      type (type_surface_dependency_id)     :: id_fe, id_dayfrac
+      type (type_dependency_id)             :: id_temp, id_depth, id_sw_par, id_f1, id_dzt
+      type (type_horizontal_dependency_id)  :: id_latitude
+      type (type_diagnostic_variable_id)    :: id_morp_out, id_npp_out, id_morpt_out, id_avej_out, id_no3P_out, id_po4P_out
       
-      real(rk)                            :: abio, bbio, cbio, kfe, alpha, k1n, nup, nupt0, jdiar
-      logical                             :: no_temp_sens, nitrogen, no3_sens, fe_limitation, so_fe_fer, cdom_attenuation, extra_diags
+      real(rk)                            :: abio, bbio, cbio, kfe, alpha, k1n, nup, nupt0, jdiar, capr
+      logical                             :: no_temp_sens, nitrogen, no3_sens, fe_limitation, so_fe_fer, cdom_attenuation, extra_diags, nfix
    contains
       procedure :: initialize
       procedure :: do
@@ -33,8 +33,9 @@ contains
       ! parameters
       call self%get_parameter(self%alpha,        'alpha',        '(W/m2)-1 d-1','Initial slope P-I curve',                        default=0.1_rk, scale_factor=d_per_s)
       call self%get_parameter(self%k1n,          'k1n',          'mmol N m-3',  'Half saturation constant for N uptake',          default=0.7_rk)
-      call self%get_parameter(self%nup,          'nup',          'd-1',         'Specific mortality rate',                        default=0.025_rk)
-      call self%get_parameter(self%nupt0,        'nupt0',        'd-1',         'temp. dependent specific mortality rate',        default=0.02_rk)
+      call self%get_parameter(self%nup,          'nup',          'd-1',         'Specific mortality rate',                        default=0.025_rk, scale_factor=d_per_s)
+      call self%get_parameter(self%nupt0,        'nupt0',        'd-1',         'temp. dependent specific mortality rate',        default=0.02_rk, scale_factor=d_per_s)
+      call self%get_parameter(self%capr,         'capr',         '',            'carbonate to carbon production ratio',           default=0.018_rk)
       call self%get_parameter(self%nitrogen,     'nitrogen',     '',            'turn on nitrogen dependency',                    default=.true.)
       if (self%nitrogen) then                                                   
           call self%get_parameter(self%nfix,     'nfix',         '',            'turn on n-fixation',                             default=.false.)
@@ -58,10 +59,10 @@ contains
       
       
       ! variable registrations
-      call self%register_state_variable(self%id_phyt, 'phytoplankton', 'mmol N m-3', 'phytoplankton concentration', minimum=0.0_rk, )
+      call self%register_state_variable(self%id_phyt, 'phytoplankton', 'mmol N m-3', 'phytoplankton concentration', minimum=0.0_rk)
       call self%add_to_aggregate_variable(standard_variables%total_nitrogen, self%id_phyt)
       call self%add_to_aggregate_variable(standard_variables%total_phosphorus, self%id_phyt, scale_factor=redptn)
-      call self%add_to_aggregate_variable(type_interior_standard_variable(name='total_phytoplankton',units='mmol N m-3'), self%id_phyt)
+      call self%add_to_aggregate_variable(type_interior_standard_variable(name='total_phytoplankton',units='mmol N m-3',aggregate_variable=.true.), self%id_phyt)
       
       ! environmental dependencies
       call self%register_dependency(self%id_sw_par,           'sw_par',           'W m-2',       'average layer PAR')
@@ -70,8 +71,9 @@ contains
       call self%register_state_dependency(self%id_phosphorus, 'p',                'mmol p m-3',  'dissolved inorganic phosphorous concentration')
       call self%register_state_dependency(self%id_det,        'detritus',         'mmol N m-3',  'detritus concentration')
       call self%register_state_dependency(self%id_o2,         'oxygen',           'umol cm-3',   'oxygen concentration')
+      call self%register_state_dependency(self%id_oxi,        'oxi',              'umol cm-3',   'oxidative demand')
       call self%register_state_dependency(self%id_alk,        'alkalinity',       'umol cm-3',   'ocean alkalinity')
-      call self%register_state_dependency(self%id_calc,       'calcite detritus', 'umol C m-3',  'detrital calcite concentration')
+      call self%register_state_dependency(self%id_calc,       'calcite_detritus', 'umol C m-3',  'detrital calcite concentration')
       if (self%nitrogen) then                                                            
           call self%register_state_dependency(self%id_no3,    'no3',      'mmol n m-3',  'dissolved inorganic nitrogen concentration')
       endif                                                                              
@@ -80,6 +82,7 @@ contains
       endif
       call self%register_dependency(self%id_temp,      standard_variables%temperature)
       call self%register_dependency(self%id_depth,     standard_variables%depth)
+      call self%register_dependency(self%id_dzt,       standard_variables%cell_thickness)
       call self%register_dependency(self%id_latitude,  standard_variables%latitude)
       
       ! register diagnostic variables for output
@@ -91,25 +94,26 @@ contains
           call self%register_diagnostic_variable(self%id_no3P_out, 'no3P_out', 's-1', 'no3 depend. phyt growth rate')
           call self%register_diagnostic_variable(self%id_po4P_out, 'po4P_out', 's-1', 'po4 depend. phyt growth rate')
       endif
-      
-          
-      
    end subroutine initialize
    
    subroutine do(self, _ARGUMENTS_DO_SURFACE_)
       class (type_uvic_phytoplankton), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_
       
-      real(rk) :: depth, lat, temp, felimit, fe_conc, jmax, sw_par, gl, f1, gd, u1, u2, phi1, phi2, dayfrac, p, cdom_factor, avej, k1p, u_P, po4P, no3, no3P, npp, phyt, temp, no3upt, o2, Paulmier_a, Paulmier_z, Paulmier_R0
+      real(rk) :: depth, lat, temp, felimit, fe_conc, jmax, sw_par, gl, f1, gd, u1, u2, phi1, phi2
+      real(rk) :: dayfrac, p, cdom_factor, avej, k1p, u_P, po4P, no3, no3P, npp, phyt, no3upt, o2
+      real(rk) :: Paulmier_a, Paulmier_z, Paulmier_R0, pflag, nflag, jdiar, nupt, bct, dzt, morp
+      real(rk) :: morpt, no3flag, o2_roc, alk_roc
       
       _LOOP_BEGIN_
          _GET_(self%id_sw_par, sw_par)
          _GET_(self%id_f1, f1)
-         _GET_(self%id_dayfrac, dayfrac)
+         _GET_(self%id_dzt,dzt)
          _GET_(self%id_phosphorus, p)
          _GET_(self%id_phyt, phyt)
          _GET_(self%id_temp, temp)
          _GET_(self%id_o2, o2)
+         _GET_SURFACE_(self%id_dayfrac, dayfrac)
          pflag = 0.5_rk + sign(0.5_rk,phyt - trcmin)
          nflag = 0.5_rk + sign(0.5_rk,p - trcmin)
          
@@ -118,7 +122,7 @@ contains
          ! iron limitation
          if (self%fe_limitation) then
              _GET_(self%id_temp, depth)
-             _GET_(self%id_latitude, lat)
+             _GET_HORIZONTAL_(self%id_latitude, lat)
              if ((self%so_fe_fer .and. lat < -40.0_rk) .or. (depth .le. 225._rk)) then
                  felimit = 1.0_rk
              else
@@ -128,12 +132,10 @@ contains
          else
              felimit = 1.0_rk
          endif
-         
-         jdiar = 1.0_rk
-         
+                  
          ! temperature- and irondependent max growth rate:
          if (self%no_temp_sens) then
-             if (self%nitrogen) then
+             if (self%nitrogen .and. self%nfix) then
                  jmax = max(0.0_rk,self%abio*2.72_rk*felimit)*self%jdiar
              else
                  jmax = self%abio*3.84_rk*felimit
@@ -182,7 +184,7 @@ contains
                  o2_roc =    (npp - no3upt)*1.25e-3_rk    ! check units of oxygen tracer
                  alk_roc = - (npp - no3upt)*1e-3_rk
                  
-                 _ADD_SOURCE_(self%id_o2,  o2_roc)
+                 _ADD_SOURCE_(self%id_oxi,  o2_roc)
                  _ADD_SOURCE_(self%id_alk, alk_roc)
                  _ADD_SOURCE_(self%id_no3, morpt-no3upt)
              else

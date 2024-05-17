@@ -12,16 +12,14 @@ module uvic_light
 
    type, extends(type_particle_model), public :: type_uvic_light
       type (type_state_variable_id)                            :: id_
-      type (type_dependency_id)                                :: id_dzt, id_phyt, id_rctheta, id_depth
-      type (type_surface_dependency_id)                        :: id_swr
+      type (type_dependency_id)                                :: id_dzt, id_phyt, id_depth
+      type (type_surface_dependency_id)                        :: id_swr, id_rctheta
       type (type_diagnostic_variable_id)                       :: id_sw_par, id_f1
       
       real(rk)                            :: kc, kw, par
-      logical                             :: 
    contains
       procedure :: initialize
       procedure :: do_column
-      procedure :: get_vertical_movement
    end type
 
 contains
@@ -35,15 +33,11 @@ contains
       call self%get_parameter(self%kw,  'kw',  '1/m',           'light attenuation due to water',      default=0.04_rk)
       call self%get_parameter(self%par, 'par', '-',             'PAR fraction of swr',                 default=0.43_rk)
       
-      ! variable registrations
-      call self%register_state_variable(self%id_det, 'detritus', 'mmol N m-3', 'detritus concentration', minimum=0.0_rk, )
-      
+      ! variable registrations      
       call self%register_diagnostic_variable(self%id_sw_par, 'sw_par', 'W m-2', 'average layer PAR',                     source=source_do_column)
       call self%register_diagnostic_variable(self%id_f1,     'f1',     '-',     'current layer light extinction coeff.', source=source_do_column)
       
-      ! environmental dependencies
-      call self%register_state_dependency(self%id_o2, 'o2',     'mmol O m-3',  'oxygen concentration')
-      
+      ! environmental dependencies      
       call self%register_dependency(self%id_rctheta, 'rctheta', '', 'incoming solar angle of incidence')
       call self%register_dependency(self%id_swr,     standard_variables%surface_downwelling_shortwave_flux)
       call self%register_dependency(self%id_depth,   standard_variables%depth)
@@ -65,7 +59,7 @@ contains
          _GET_(self%id_dzt,dzt)
          _GET_(self%id_depth,depth)
          _GET_(self%id_phyt,phyt)
-         _GET_(self%id_rctheta,rctheta)
+         _GET_SURFACE_(self%id_rctheta,rctheta)
          swr = swr*exp(-self%kc*phin)
          
          sw_par = self%par*swr*exp(ztt*(self%kw/rctheta))
