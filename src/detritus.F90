@@ -15,8 +15,8 @@ module uvic_detritus
       type (type_dependency_id)                                :: id_temp, id_depth, id_wd_in
       type (type_diagnostic_variable_id)                       :: id_remi_out, id_wd_out
       
-      real(rk)                            :: nu0, wd0
-      logical                             :: o2_sens, nitrogen, no_temp_sens
+      real(rk)                            :: nud0, wd0, bbio, cbio
+      logical                             :: o2_sens, nitrogen, no_temp_sens, no3_sens
    contains
       procedure :: initialize
       procedure :: do
@@ -31,10 +31,10 @@ contains
       integer,                    intent(in)            :: configunit
 
       ! parameters
-      call self%get_parameter(self%o2_sens,      '02_sens',      '',       'turn on remineralization oxygen dependence',  default=.true.)
+      call self%get_parameter(self%o2_sens,      'o2_sens',      '',       'turn on remineralization oxygen dependence',  default=.true.)
       call self%get_parameter(self%nitrogen,     'nitrogen',     '',       'turn on nitrogen dependency',                 default=.true.)
       if (self%nitrogen) then
-          call self%get_parameter(self%no3_sens, 'n03_sens',     '',       'turn on remineralization nitrate dependence', default=.true.)
+          call self%get_parameter(self%no3_sens, 'no3_sens',     '',       'turn on remineralization nitrate dependence', default=.true.)
       endif
       call self%get_parameter(self%no_temp_sens, 'no_temp_sens', '',       'turn off temperature sensitivity',            default=.false.)                                                                                                                               
       if (.not. self%no_temp_sens) then
@@ -45,9 +45,13 @@ contains
       call self%get_parameter(self%wd0,          'wd0',          'm d-1',  'base detritus sinking speed',                 default=6.0_rk, scale_factor=d_per_s)
       
       ! variable registrations
-      call self%register_state_variable(self%id_det, 'detritus', 'mmol N m-3', 'detritus concentration', minimum=0.0_rk, )
+      call self%register_state_variable(self%id_det, 'detritus', 'mmol N m-3', 'detritus concentration')
       call self%add_to_aggregate_variable(standard_variables%total_nitrogen, self%id_det)
       call self%add_to_aggregate_variable(standard_variables%total_phosphorus, self%id_det, scale_factor=redptn)
+      
+      ! register diagnostic variables for output
+      call self%register_diagnostic_variable(self%id_remi_out,  'remi',  'mmol m-3 s-1', 'remineralization rate')
+      call self%register_diagnostic_variable(self%id_wd_out,    'wd',    'm s-1',        'layer-specific sinking speed')
       
       ! environmental dependencies
       call self%register_state_dependency(self%id_o2,         'o2',      'umol O cm-3', 'oxygen concentration')
@@ -59,10 +63,6 @@ contains
       endif
       call self%register_dependency(self%id_temp,      standard_variables%temperature)
       call self%register_dependency(self%id_depth,     standard_variables%depth)
-      
-      ! register diagnostic variables for output
-      call self%register_diagnostic_variable(self%id_remi_out,  'remi',  'mmol m-3 s-1', 'remineralization rate')
-      call self%register_diagnostic_variable(self%id_wd_out,    'wd',    'm s-1',        'layer-specific sinking speed')
 
    end subroutine initialize
    
@@ -70,15 +70,15 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_
       
-      real(rk) :: o2, no3, nud, temp, bct, det
+      real(rk) :: o2, no3, nud, temp, bct, det, remi, dflag, depth, wd
       
       _LOOP_BEGIN_
-         _GET_(self%id_detritus, det)
+         _GET_(self%id_det, det)
          _GET_(self%id_o2, o2)
          if (self%o2_sens) then
              nud = self%nud0*(0.65_rk+0.35_rk*tanh(o2*1000._rk-6._rk)) ! decrease remineralisation rate in oxygen minimum zone
              _GET_(self%id_no3, no3)
-             if (self%nitrogen .and. no3_sens .and. (no3.lt.0.0_rk)) then !!! The following implies that remineralisation is zero when no3 is zero, even in oxygen replete conditions !!!
+             if (self%nitrogen .and. self%no3_sens .and. (no3.lt.0.0_rk)) then !!! The following implies that remineralisation is zero when no3 is zero, even in oxygen replete conditions !!!
                  nud = 0.0_rk
              endif
          else
@@ -135,7 +135,7 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
       
-      real(rk) :: wd
+      real(rk) :: wd, det
       
       _LOOP_BEGIN_
          _GET_(self%id_wd_in,wd)

@@ -3,7 +3,7 @@
 module uvic_nut_chem
    use fabm_types
    use fabm_particle
-   use fabm_builtin_depth_integral, only: type_depth_integral
+   use fabm_builtin_models!, only: type_depth_integral
    
    use uvic_shared
 
@@ -12,20 +12,18 @@ module uvic_nut_chem
    private
 
    type, extends(type_particle_model), public :: type_uvic_nut_chem
-      type (type_state_variable_id)                            :: id_det, id_o2, id_phosphorus, id_no3, id_dic, id_c14!id_det, id_o2, id_phosphorus, id_no3
-      type (type_dependency_id)                                :: id_o2_sms, id_phosphorus_sms, id_calc_sms!, id_temp, id_depth, id_wd_in
+      type (type_state_variable_id)                            :: id_det, id_alk, id_o2, id_phosphorus, id_no3, id_dic, id_c14!id_det, id_o2, id_phosphorus, id_no3
+      type (type_dependency_id)                                :: id_o2_sms, id_phosphorus_sms, id_depth, id_dzt, id_calc_sms!, id_temp, id_depth, id_wd_in
       type (type_surface_dependency_id)                        :: id_intcalc
       type (type_bottom_dependency_id)                         :: id_bdepth
-      type (type_diagnostic_variable_id)                       :: id_o2_dummy, id_phosphorus_dummy, id_calc_dummy
+      type (type_diagnostic_variable_id)                       :: id_o2_dummy, id_phosphorus_dummy, id_calc_dummy, id_deni
       
-      real(rk)                            :: dcaco3
+      real(rk)                            :: dcaco3, rstd
       logical                             :: nitrogen
    contains
       procedure :: initialize
       procedure :: do
       procedure :: do_column
-      procedure :: do_bottom
-      procedure :: get_vertical_movement
    end type
 
 contains
@@ -33,44 +31,47 @@ contains
    subroutine initialize(self, configunit)
       class (type_uvic_nut_chem), intent(inout), target :: self
       integer,                    intent(in)            :: configunit
+      class (type_depth_integral), pointer :: calc_sms_integrator
+      allocate(calc_sms_integrator)
       
       ! parameters
       call self%get_parameter(self%nitrogen,     'nitrogen',     '',            'turn on nitrogen dependency',                    default=.true.)
-      call self%get_parameter(self%dcaco3,       'dcaco3',       'cm',          'calcite remineralization depth',                 default=650000.0_rk, scale_factor=1.e-2)
+      call self%get_parameter(self%dcaco3,       'dcaco3',       'cm',          'calcite remineralization depth',                 default=650000.0_rk, scale_factor=1.e-2_rk)
       call self%get_parameter(self%rstd,         'rstd',         '',            'standard c14/c12 ratio',                         default=1.176e-12_rk)
 
-      call self%register_state_variable(self%id_o2,         'o2',       'umol O cm-3',   'oxygen concentration')
-      call self%register_state_variable(self%id_phosphorus, 'p',        'mmol P m-3',    'dissolved inorganic phosphorous concentration')
-      call self%register_state_variable(self%id_dic,        'DIC',      'umol C m-3',    'dissolved inorganic carbon concentration')
-      call self%register_state_variable(self%id_c14,        'c14',      'umol c14 cm-3', 'carbon 14 concentration')
+      call self%register_state_variable(self%id_o2,         'o2',         'umol O cm-3',   'oxygen concentration')
+      call self%register_state_variable(self%id_phosphorus, 'p',          'mmol P m-3',    'dissolved inorganic phosphorous concentration')
+      call self%register_state_variable(self%id_dic,        'DIC',        'umol C cm-3',    'dissolved inorganic carbon concentration')
+      call self%register_state_variable(self%id_alk,        'alkalinity', 'umol cm-3',     'ocean alkalinity')
+      call self%register_state_variable(self%id_c14,        'c14',        'umol c14 cm-3', 'carbon 14 concentration')
       if (self%nitrogen) then
           call self%register_state_variable(self%id_no3,    'no3',      'mmol n m-3',  'dissolved inorganic nitrogen concentration')
+          call self%add_to_aggregate_variable(standard_variables%total_nitrogen, self%id_no3)
           call self%register_diagnostic_variable(self%id_deni, 'denitrification',  'mmol m-3 s-1', 'denitrification rate')
       endif
-
-
+      
       call self%add_to_aggregate_variable(standard_variables%total_phosphorus, self%id_phosphorus)
       
       ! set up dummy state vars to pick up sources from the npzd model
+      call self%register_dependency(self%id_o2_sms,  'oxygen_sms',   'umol cm-3 s-1',  'oxygen sms')
       call self%register_diagnostic_variable(self%id_o2_dummy, 'o2_dummy','umol cm-3', 'target pool for net respiration',source=source_constant, output=output_none, act_as_state_variable=.true.)
       call self%request_coupling(self%id_o2_sms,'./o2_dummy_sms_tot')
       
+      call self%register_dependency(self%id_calc_sms,  'calcite_sms',   'umol cm-3 s-1',  'calc sms')
       call self%register_diagnostic_variable(self%id_calc_dummy, 'calc_dummy','umol cm-3', 'target pool for calcite production',source=source_constant, output=output_none, act_as_state_variable=.true.)
       call self%request_coupling(self%id_calc_sms,'./calc_dummy_sms_tot')
 
+      call self%register_dependency(self%id_phosphorus_sms,  'phosphorus_sms',   'mmol P m-3 s-1',  'phosphorus sms')
       call self%register_diagnostic_variable(self%id_phosphorus_dummy, 'phosphorus_dummy','mmol P m-3', 'target pool for p release',source=source_constant, output=output_none, act_as_state_variable=.true.)
       call self%request_coupling(self%id_phosphorus_sms,'./phosphorus_dummy_sms_tot')
 
-
       ! set up depth integral of calcite production
-      class (type_depth_integral), pointer :: calc_sms_integrator
-      allocate(calc_sms_integrator)
       call self%add_child(calc_sms_integrator, 'calc_sms_integrator')
       call calc_sms_integrator%request_coupling('source','../calc_dummy_sms_tot')
       
       ! couple depth-integrated calcite production dependency to calc_sms_integrator 
       call self%register_dependency(self%id_intcalc, 'intcalc', 'umol cm-2', 'depth-integrated calcite production')
-      call self%request_coupling(self%id_intcalc, '../calc_sms_integrator/result')
+      call self%request_coupling(self%id_intcalc, './calc_sms_integrator/result')
       
       ! environmental dependencies
       call self%register_dependency(self%id_depth,   standard_variables%depth)
@@ -86,7 +87,9 @@ contains
       class (type_uvic_nut_chem), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_
       
-      real(rk) :: p, p_release, o2, no3, nud, temp, bct, det, o2_demand, no3, fo2, o2_roc, no3flag, deni, calc_prod, dic_roc, alk_roc, 
+      real(rk) :: p, p_release, o2, no3, nud, temp, bct, det, o2_demand, fo2, o2_roc, no3flag
+      real(rk) :: deni, calc_prod, dic_roc, alk_roc, so2, Paulmier_a, Paulmier_z, Paulmier_R0
+      real(rk) :: c14, c14_roc
       
       _LOOP_BEGIN_
          ! apply phosphorus sources to actual phosphorus state var.
@@ -137,10 +140,10 @@ contains
       class (type_uvic_nut_chem), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_COLUMN_
       
-      real(rk) :: dzt, depth, rcak, rcab, zw, zw_prev, intcalc, bdepth
+      real(rk) :: dzt, depth, rcak, rcab, zw, zw_prev, intcalc, bdepth, dic_roc, alk_roc
       _GET_SURFACE_(self%id_intcalc,intcalc)
       intcalc = intcalc*100._rk              ! we multiply with [cm m-1], to convert back to cm-2 (because of unit mismatch, type_depth_integral returns [umol cm-3 m])
-      _GET_BOTTOM_(self%id_bdepth,bdepth
+      _GET_BOTTOM_(self%id_bdepth,bdepth)
 
       rcak = 0.0_rk 
       rcab = 0.0_rk
