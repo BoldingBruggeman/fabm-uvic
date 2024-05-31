@@ -13,6 +13,10 @@ instances:
       alkalinity: 2.4
       c14: 1e-12
       no3: 30.0
+    coupling:
+      dc14ccn: dc14ccn/data
+      atco2: atco2/data
+      aice: ice/data
   detritus:
     model: uvic/detritus
     parameters:
@@ -27,8 +31,9 @@ instances:
     initialization:
       detritus: 0.001
     coupling:
-      o2: nut_chem/o2_dummy
-      p: nut_chem/phosphorus_dummy
+      o2: nut_chem/o2
+      oxi: nut_chem/o2_dummy
+      p: nut_chem/p
       no3: nut_chem/no3
   light:
     model: uvic/light
@@ -61,9 +66,10 @@ instances:
       sw_par: light/sw_par
       f1: light/f1
       dayfrac: solar/dayfrac
-      p: nut_chem/phosphorus_dummy
+      p: nut_chem/p
       detritus: detritus/detritus
-      oxygen: nut_chem/o2_dummy
+      oxygen: nut_chem/o2
+      oxi: nut_chem/o2_dummy
       alkalinity: nut_chem/alkalinity
       calcite_detritus: nut_chem/calc_dummy
       no3: nut_chem/no3
@@ -91,9 +97,10 @@ instances:
       sw_par: light/sw_par
       f1: light/f1
       dayfrac: solar/dayfrac
-      p: nut_chem/phosphorus_dummy
+      p: nut_chem/p
       detritus: detritus/detritus
-      oxygen: nut_chem/o2_dummy
+      oxygen: nut_chem/o2
+      oxi: nut_chem/o2_dummy
       alkalinity: nut_chem/alkalinity
       calcite_detritus: nut_chem/calc_dummy
       no3: nut_chem/no3
@@ -126,8 +133,24 @@ instances:
       prey2: zooplankton
       prey3: detritus
       prey4: diazotrophs
-      p: nut_chem/phosphorus_dummy
+      p: nut_chem/p
       detritus: detritus/detritus
-      o2: nut_chem/o2_dummy
+      o2: nut_chem/o2
+      oxi: nut_chem/o2_dummy
       calcite_detritus: nut_chem/calc_dummy
       no3: nut_chem/no3
+  dc14ccn:
+    model: surface_constant                   
+    parameters:
+      standard_name:                          
+      value: 1.3e-12   
+  atco2:
+    model: surface_constant                   
+    parameters:
+      standard_name:                          
+      value: 350.0   
+  ice:
+    model: surface_constant
+    parameters:
+      standard_name: ice_area_fraction
+      value: 0.0

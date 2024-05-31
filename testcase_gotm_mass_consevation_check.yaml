@@ -1,4 +1,4 @@
-#check_conservation: true
+check_conservation: true
 instances:
   nut_chem:
     model: uvic/nut_chem
@@ -13,10 +13,6 @@ instances:
       alkalinity: 2.4
       c14: 1e-12
       no3: 30.0
-    coupling:
-      dc14ccn: dc14ccn/data
-      atco2: atco2/data
-      aice: ice/data
   detritus:
     model: uvic/detritus
     parameters:
@@ -139,18 +135,3 @@ instances:
       oxi: nut_chem/o2_dummy
       calcite_detritus: nut_chem/calc_dummy
       no3: nut_chem/no3
-  dc14ccn:
-    model: surface_constant                   
-    parameters:
-      standard_name:                          
-      value: 1.3e-12   
-  atco2:
-    model: surface_constant                   
-    parameters:
-      standard_name:                          
-      value: 350.0   
-  ice:
-    model: surface_constant
-    parameters:
-      standard_name: ice_area_fraction
-      value: 0.0
