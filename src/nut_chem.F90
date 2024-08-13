@@ -17,6 +17,7 @@ module uvic_nut_chem
       type (type_surface_dependency_id)                        :: id_intcalc, id_ws, id_aice, id_dc14ccn, id_atco2
       type (type_bottom_dependency_id)                         :: id_bdepth
       type (type_diagnostic_variable_id)                       :: id_o2_dummy, id_phosphorus_dummy, id_calc_dummy, id_deni
+      type (type_bottom_diagnostic_variable_id)                :: id_rain_cal
       
       real(rk)                            :: dcaco3, rstd
       logical                             :: nitrogen
@@ -66,6 +67,9 @@ contains
 !      call self%register_diagnostic_variable(self%id_phosphorus_dummy, 'phosphorus_dummy','mmol P m-3', 'target pool for p release',source=source_constant, output=output_none, act_as_state_variable=.true.)
       call self%request_coupling(self%id_phosphorus_sms,'./p_sms_tot')
       self%id_phosphorus%sms%link%target%source = source_constant
+      
+      ! register calcite bottom flux diagnostic
+      call self%register_diagnostic_variable(self%id_rain_cal,  'rain_cal', 'umol cm-2 s-1', 'calcite sedimentation flux')
       
       ! set up depth integral of calcite production
       call self%add_child(calc_sms_integrator, 'calc_sms_integrator')
@@ -149,7 +153,7 @@ contains
       class (type_uvic_nut_chem), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_COLUMN_
       
-      real(rk) :: dzt, depth, rcak, rcab, zw, zw_prev, intcalc, bdepth, dic_roc, alk_roc
+      real(rk) :: dzt, depth, rcak, rcab, zw, zw_prev, intcalc, bdepth, dic_roc, alk_roc, rain_cal
       _GET_SURFACE_(self%id_intcalc,intcalc)
       intcalc = intcalc*100._rk              ! we multiply with [cm m-1], to convert back to cm-2 (because of unit mismatch, type_depth_integral returns [umol cm-3 m])
       _GET_BOTTOM_(self%id_bdepth,bdepth)
@@ -159,7 +163,8 @@ contains
       _DOWNWARD_LOOP_BEGIN_
          _GET_(self%id_dzt,dzt)
          _GET_(self%id_depth,depth)
-
+         dzt = dzt*1000._rk
+         depth = depth*1000._rk
          zw = depth+0.5_rk*dzt
          
          if (rcak == 0.0_rk) then
@@ -178,11 +183,13 @@ contains
          else
              dic_roc = intcalc*rcab
              alk_roc = intcalc*rcab*2._rk
+             rain_cal = intcalc*rcab - intcalc*rcak*dzt
          endif
          
          _ADD_SOURCE_(self%id_dic, dic_roc) !NIC: NOT FINISHED we still need to interact with the sediment (line 742 of tracer.f90) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          _ADD_SOURCE_(self%id_alk, alk_roc)
       _DOWNWARD_LOOP_END_
+      _SET_BOTTOM_DIAGNOSTIC_(self%id_rain_cal,rain_cal)
    end subroutine do_column
    
    subroutine do_surface(self, _ARGUMENTS_DO_SURFACE_)
@@ -531,7 +538,7 @@ contains
       dco2star = dco2star/permil ! convert from mol/kg -> mol/m^3
  
       return
-      end subroutine co2calc_SWS
+   end subroutine co2calc_SWS
 
 
    real(rk) function drtsafe (k1, k2, kw, kb, ks, kf, k1p, k2p, k3p, ksi, &

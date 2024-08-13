@@ -13,7 +13,7 @@ module uvic_shared
    real(rk), parameter :: redctp       = redctn/redptn       ! C:P Redfield ratio, includes conversion from mmol m-3 to umol cm-3
    real(rk), parameter :: redntp       = 1._rk/redptn        ! N:P Redfield ratio
    real(rk), parameter :: trcmin       = 5e-12_rk            ! min tracer concentration
-   real(rk), parameter :: xconv        = 25.1_rk/3.6e+05_rk  ! xconv is constant to convert piston_vel from cm/hr -> cm/s
+   real(rk), parameter :: xconv        = 25.1_rk/3.6e+05_rk  ! xconv is the gas transfer velocity paramter and includes conversion to convert piston_vel from cm/hr -> cm/s
    real(rk), parameter :: C2K          = 273.15_rk           ! Celsius to Kelvin constant
 
    

@@ -12,8 +12,9 @@ module uvic_detritus
 
    type, extends(type_particle_model), public :: type_uvic_detritus
       type (type_state_variable_id)                            :: id_det, id_o2, id_oxi, id_phosphorus, id_no3
-      type (type_dependency_id)                                :: id_temp, id_depth, id_wd_in
+      type (type_dependency_id)                                :: id_temp, id_depth, id_wd_in, id_dzt
       type (type_diagnostic_variable_id)                       :: id_remi_out, id_wd_out
+      type (type_bottom_diagnostic_variable_id)                :: id_rain_org
       
       real(rk)                            :: nud0, wd0, bbio, cbio
       logical                             :: o2_sens, nitrogen, no_temp_sens, no3_sens
@@ -50,8 +51,9 @@ contains
       call self%add_to_aggregate_variable(standard_variables%total_phosphorus, self%id_det, scale_factor=redptn)
       
       ! register diagnostic variables for output
-      call self%register_diagnostic_variable(self%id_remi_out,  'remi',  'mmol m-3 s-1', 'remineralization rate')
-      call self%register_diagnostic_variable(self%id_wd_out,    'wd',    'm s-1',        'layer-specific sinking speed')
+      call self%register_diagnostic_variable(self%id_remi_out,  'remi',     'mmol m-3 s-1', 'remineralization rate')
+      call self%register_diagnostic_variable(self%id_wd_out,    'wd',       'm s-1',        'layer-specific sinking speed')
+      call self%register_diagnostic_variable(self%id_rain_org,  'rain_org', 'umol cm-2 s-1', 'detritus sedimentation flux')
       
       ! environmental dependencies
       call self%register_state_dependency(self%id_o2,         'o2',      'umol O cm-3', 'oxygen concentration')
@@ -64,6 +66,7 @@ contains
       endif
       call self%register_dependency(self%id_temp,      standard_variables%temperature)
       call self%register_dependency(self%id_depth,     standard_variables%depth)
+      call self%register_dependency(self%id_dzt,       standard_variables%cell_thickness)
 
    end subroutine initialize
    
@@ -118,16 +121,20 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_BOTTOM_
       
-      real(rk) :: wd, det
+      real(rk) :: wd, det, dzt, dflag
       
       _BOTTOM_LOOP_BEGIN_
          _GET_(self%id_wd_in,wd)
          _GET_(self%id_det, det)
+         _GET_(self%id_dzt, dzt)
+         dzt = dzt*1000._rk
+         dflag = 0.5_rk + sign(0.5_rk,det - trcmin)
          
-         _ADD_BOTTOM_FLUX_(self%id_det,   -wd*det)
-         _ADD_BOTTOM_FLUX_(self%id_phosphorus, redptn*wd*det)
+         _SET_BOTTOM_DIAGNOSTIC_(self%id_rain_org,redctn*wd*det*dflag*dzt)
+         _ADD_BOTTOM_FLUX_(self%id_det,   -wd*det*dflag)
+         _ADD_BOTTOM_FLUX_(self%id_phosphorus, redptn*wd*det*dflag)
          if (self%nitrogen) then
-             _ADD_BOTTOM_FLUX_(self%id_no3, wd*det)
+             _ADD_BOTTOM_FLUX_(self%id_no3, wd*det*dflag)
          endif
       _BOTTOM_LOOP_END_
    end subroutine do_bottom
@@ -136,12 +143,13 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_GET_VERTICAL_MOVEMENT_
       
-      real(rk) :: wd, det
+      real(rk) :: wd, det, dflag
       
       _LOOP_BEGIN_
          _GET_(self%id_wd_in,wd)
          _GET_(self%id_det, det)
-                  
+         dflag = 0.5_rk + sign(0.5_rk,det - trcmin)
+         
          _ADD_VERTICAL_VELOCITY_(self%id_det,  -wd)
       _LOOP_END_
    end subroutine get_vertical_movement
