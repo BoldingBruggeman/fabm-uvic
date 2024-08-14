@@ -66,7 +66,6 @@ contains
       endif
       call self%register_dependency(self%id_temp,      standard_variables%temperature)
       call self%register_dependency(self%id_depth,     standard_variables%depth)
-      call self%register_dependency(self%id_dzt,       standard_variables%cell_thickness)
 
    end subroutine initialize
    
@@ -101,7 +100,7 @@ contains
          
          ! calculate layer-specific sinking rate and save as diagnostic for the do_bottom and get_vertical_movement subroutines
          _GET_(self%id_depth,depth)
-         wd = self%wd0+6.0e-2_rk*depth*d_per_s*dflag
+         wd = (self%wd0+6.0e-2_rk*depth)*d_per_s*dflag
          _SET_DIAGNOSTIC_(self%id_wd_out,wd)
          
          ! update state variables
@@ -121,20 +120,19 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_BOTTOM_
       
-      real(rk) :: wd, det, dzt, dflag
+      real(rk) :: wd, det, dflag, flux
       
       _BOTTOM_LOOP_BEGIN_
          _GET_(self%id_wd_in,wd)
          _GET_(self%id_det, det)
-         _GET_(self%id_dzt, dzt)
-         dzt = dzt*1000._rk
          dflag = 0.5_rk + sign(0.5_rk,det - trcmin)
+         flux = wd*det*dflag
          
-         _SET_BOTTOM_DIAGNOSTIC_(self%id_rain_org,redctn*wd*det*dflag*dzt)
-         _ADD_BOTTOM_FLUX_(self%id_det,   -wd*det*dflag)
-         _ADD_BOTTOM_FLUX_(self%id_phosphorus, redptn*wd*det*dflag)
+         _SET_BOTTOM_DIAGNOSTIC_(self%id_rain_org,redctn*flux*100.0_rk) !  redctn contains conversion of det. Multiplied by 100 to convert wd from m s-1 to cm s-1
+         _ADD_BOTTOM_FLUX_(self%id_det,   -flux)
+         _ADD_BOTTOM_FLUX_(self%id_phosphorus, redptn*flux)
          if (self%nitrogen) then
-             _ADD_BOTTOM_FLUX_(self%id_no3, wd*det*dflag)
+             _ADD_BOTTOM_FLUX_(self%id_no3, flux)
          endif
       _BOTTOM_LOOP_END_
    end subroutine do_bottom

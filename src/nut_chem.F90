@@ -163,8 +163,8 @@ contains
       _DOWNWARD_LOOP_BEGIN_
          _GET_(self%id_dzt,dzt)
          _GET_(self%id_depth,depth)
-         dzt = dzt*1000._rk
-         depth = depth*1000._rk
+         dzt = dzt*100._rk ! convert from m to cm
+         depth = depth*100._rk ! convert from m to cm
          zw = depth+0.5_rk*dzt
          
          if (rcak == 0.0_rk) then
