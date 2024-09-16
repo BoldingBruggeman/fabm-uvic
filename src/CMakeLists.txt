@@ -7,6 +7,7 @@ add_library(fabm_models_uvic OBJECT
 			shared.F90
 			solar.F90
             zooplankton.F90
+			sediment.F90
            )
 
 add_dependencies(fabm_models_uvic fabm_base)

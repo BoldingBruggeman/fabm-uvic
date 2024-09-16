@@ -17,7 +17,7 @@ module uvic_nut_chem
       type (type_surface_dependency_id)                        :: id_intcalc, id_ws, id_aice, id_dc14ccn, id_atco2
       type (type_bottom_dependency_id)                         :: id_bdepth
       type (type_diagnostic_variable_id)                       :: id_o2_dummy, id_phosphorus_dummy, id_calc_dummy, id_deni
-      type (type_bottom_diagnostic_variable_id)                :: id_rain_cal
+      type (type_diagnostic_variable_id)                       :: id_rain_cal
       
       real(rk)                            :: dcaco3, rstd
       logical                             :: nitrogen
@@ -43,7 +43,7 @@ contains
 
       call self%register_state_variable(self%id_o2,         'o2',         'umol O cm-3',   'oxygen concentration')
       call self%register_state_variable(self%id_phosphorus, 'p',          'mmol P m-3',    'dissolved inorganic phosphorous concentration')
-      call self%register_state_variable(self%id_dic,        'DIC',        'umol C cm-3',    'dissolved inorganic carbon concentration')
+      call self%register_state_variable(self%id_dic,        'dic',        'umol C cm-3',    'dissolved inorganic carbon concentration')
       call self%register_state_variable(self%id_alk,        'alkalinity', 'umol cm-3',     'ocean alkalinity')
       call self%register_state_variable(self%id_c14,        'c14',        'umol c14 cm-3', 'carbon 14 concentration')
       if (self%nitrogen) then
@@ -69,7 +69,7 @@ contains
       self%id_phosphorus%sms%link%target%source = source_constant
       
       ! register calcite bottom flux diagnostic
-      call self%register_diagnostic_variable(self%id_rain_cal,  'rain_cal', 'umol cm-2 s-1', 'calcite sedimentation flux')
+      call self%register_diagnostic_variable(self%id_rain_cal,  'rain_cal', 'umol cm-2 s-1', 'calcite sedimentation flux', source=source_do_column)
       
       ! set up depth integral of calcite production
       call self%add_child(calc_sms_integrator, 'calc_sms_integrator')
@@ -180,6 +180,7 @@ contains
          if (zw < bdepth) then
              dic_roc = intcalc*rcak
              alk_roc = intcalc*rcak*2._rk
+             rain_cal = 0.0_rk
          else
              dic_roc = intcalc*rcab
              alk_roc = intcalc*rcab*2._rk
@@ -188,8 +189,9 @@ contains
          
          _ADD_SOURCE_(self%id_dic, dic_roc) !NIC: NOT FINISHED we still need to interact with the sediment (line 742 of tracer.f90) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
          _ADD_SOURCE_(self%id_alk, alk_roc)
+         _SET_DIAGNOSTIC_(self%id_rain_cal,rain_cal)
       _DOWNWARD_LOOP_END_
-      _SET_BOTTOM_DIAGNOSTIC_(self%id_rain_cal,rain_cal)
+      
    end subroutine do_column
    
    subroutine do_surface(self, _ARGUMENTS_DO_SURFACE_)

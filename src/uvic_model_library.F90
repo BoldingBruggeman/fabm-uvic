@@ -8,6 +8,7 @@ module uvic_model_library
    use uvic_phytoplankton
    use uvic_solar
    use uvic_zooplankton
+   use uvic_sediment
 
    implicit none
 
@@ -34,6 +35,7 @@ contains
          case ('phytoplankton');     allocate(type_uvic_phytoplankton::model)
          case ('solar');             allocate(type_uvic_solar::model)
          case ('zooplankton');       allocate(type_uvic_zooplankton::model) 
+         case ('sediment');          allocate(type_uvic_sediment::model)
          case default
             call self%type_base_model_factory%create(name, model)
       end select

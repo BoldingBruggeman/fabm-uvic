@@ -12,9 +12,9 @@ module uvic_detritus
 
    type, extends(type_particle_model), public :: type_uvic_detritus
       type (type_state_variable_id)                            :: id_det, id_o2, id_oxi, id_phosphorus, id_no3
-      type (type_dependency_id)                                :: id_temp, id_depth, id_wd_in, id_dzt
+      type (type_dependency_id)                                :: id_temp, id_depth, id_wd_in, id_dzt, id_rain_org_in
       type (type_diagnostic_variable_id)                       :: id_remi_out, id_wd_out
-      type (type_bottom_diagnostic_variable_id)                :: id_rain_org
+      type (type_diagnostic_variable_id)                       :: id_rain_org
       
       real(rk)                            :: nud0, wd0, bbio, cbio
       logical                             :: o2_sens, nitrogen, no_temp_sens, no3_sens
@@ -56,10 +56,11 @@ contains
       call self%register_diagnostic_variable(self%id_rain_org,  'rain_org', 'umol cm-2 s-1', 'detritus sedimentation flux')
       
       ! environmental dependencies
-      call self%register_state_dependency(self%id_o2,         'o2',      'umol O cm-3', 'oxygen concentration')
-      call self%register_state_dependency(self%id_oxi,        'oxi',     'umol cm-3',   'oxidative demand')
-      call self%register_state_dependency(self%id_phosphorus, 'p',       'mmol p m-3',  'dissolved inorganic phosphorous concentration')
-      call self%register_dependency(self%id_wd_in,            'wd',      'm s-1',       'layer-specific sinking speed')
+      call self%register_state_dependency(self%id_o2,         'o2',      'umol O cm-3',  'oxygen concentration')
+      call self%register_state_dependency(self%id_oxi,        'oxi',     'umol cm-3',    'oxidative demand')
+      call self%register_state_dependency(self%id_phosphorus, 'p',       'mmol p m-3',   'dissolved inorganic phosphorous concentration')
+      call self%register_dependency(self%id_wd_in,            'wd',      'm s-1',        'layer-specific sinking speed')
+      call self%register_dependency(self%id_rain_org_in,      'rain_org','umol cm-2 s-1','detritus sedimentation flux')
       
       if (self%nitrogen) then
           call self%register_state_dependency(self%id_no3, 'no3',     'mmol n m-3',  'dissolved inorganic nitrogen concentration')
@@ -73,7 +74,7 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_
       
-      real(rk) :: o2, no3, nud, temp, bct, det, remi, dflag, depth, wd
+      real(rk) :: o2, no3, nud, temp, bct, det, remi, dflag, depth, wd, flux
       
       _LOOP_BEGIN_
          _GET_(self%id_det, det)
@@ -103,6 +104,10 @@ contains
          wd = (self%wd0+6.0e-2_rk*depth)*d_per_s*dflag
          _SET_DIAGNOSTIC_(self%id_wd_out,wd)
          
+         ! calculate detrital sinking flux out of the current layer
+         flux = wd*det*dflag
+         _SET_DIAGNOSTIC_(self%id_rain_org,redctn*flux*100.0_rk) !  redctn contains conversion of det. Multiplied by 100 to convert wd from m s-1 to cm s-1
+
          ! update state variables
          _ADD_SOURCE_(self%id_det, -remi)
          _ADD_SOURCE_(self%id_phosphorus, redptn*remi)
@@ -120,15 +125,12 @@ contains
       class (type_uvic_detritus), intent(in) :: self
       _DECLARE_ARGUMENTS_DO_BOTTOM_
       
-      real(rk) :: wd, det, dflag, flux
+      real(rk) :: rain_org, flux
       
       _BOTTOM_LOOP_BEGIN_
-         _GET_(self%id_wd_in,wd)
-         _GET_(self%id_det, det)
-         dflag = 0.5_rk + sign(0.5_rk,det - trcmin)
-         flux = wd*det*dflag
+         _GET_(self%id_rain_org_in,rain_org)
+         flux = rain_org/(redctn*100.0_rk) !  backwards conversion from umol C cm-3 to mmol N m-3 and from cm s-1 to m s-1
          
-         _SET_BOTTOM_DIAGNOSTIC_(self%id_rain_org,redctn*flux*100.0_rk) !  redctn contains conversion of det. Multiplied by 100 to convert wd from m s-1 to cm s-1
          _ADD_BOTTOM_FLUX_(self%id_det,   -flux)
          _ADD_BOTTOM_FLUX_(self%id_phosphorus, redptn*flux)
          if (self%nitrogen) then
