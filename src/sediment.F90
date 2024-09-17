@@ -290,7 +290,7 @@ contains
          end do
 
          ! update boundary fluxes
-         tmp = ttrcal - rain_cal_p/(self%dtsed*86400._rk)
+         tmp = (ttrcal - rain_cal_p)/(self%dtsed*86400._rk)
          weathflx = -tmp
          tmp = tmp/(dzt*100._rk) ! convert layer height to cm and convert tmp from umol cm-2 s-1 to umol cm-3 s-1
          
