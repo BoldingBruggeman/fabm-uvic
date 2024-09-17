@@ -30,7 +30,7 @@ instances:
       no3: 30.0
     coupling:
       dc14ccn: dc14ccn/data
-      atco2: atco2/data
+      #atco2: atco2/data
       aice: ice/data
   detritus:
     model: uvic/detritus

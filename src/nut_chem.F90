@@ -83,7 +83,7 @@ contains
       call self%register_dependency(self%id_depth,   standard_variables%depth)
       call self%register_dependency(self%id_dzt,     standard_variables%cell_thickness)
       call self%register_dependency(self%id_bdepth,  standard_variables%bottom_depth)
-      call self%register_dependency(self%id_atco2,   'atco2', '1e-6', 'atmospheric carbon concentration')
+      call self%register_dependency(self%id_atco2,   standard_variables%mole_fraction_of_carbon_dioxide_in_air) ! 'atco2', '1e-6', 'atmospheric carbon concentration')
       call self%register_dependency(self%id_sst,     standard_variables%temperature)
       call self%register_dependency(self%id_sss,     standard_variables%practical_salinity)
       call self%register_dependency(self%id_ws,      standard_variables%wind_speed)
