@@ -41,7 +41,7 @@ contains
       call self%get_parameter(self%dcaco3,       'dcaco3',       'cm',          'calcite remineralization depth',                 default=650000.0_rk, scale_factor=1.e-2_rk)
       call self%get_parameter(self%rstd,         'rstd',         '',            'standard c14/c12 ratio',                         default=1.176e-12_rk)
 
-      call self%register_state_variable(self%id_o2,         'o2',         'umol O cm-3',   'oxygen concentration')
+      call self%register_state_variable(self%id_o2,         'o2',         'umol O cm-3',   'oxygen concentration', minimum=0.0_rk)
       call self%register_state_variable(self%id_phosphorus, 'p',          'mmol P m-3',    'dissolved inorganic phosphorous concentration')
       call self%register_state_variable(self%id_dic,        'dic',        'umol C cm-3',    'dissolved inorganic carbon concentration')
       call self%register_state_variable(self%id_alk,        'alkalinity', 'umol cm-3',     'ocean alkalinity')
@@ -83,7 +83,7 @@ contains
       call self%register_dependency(self%id_depth,   standard_variables%depth)
       call self%register_dependency(self%id_dzt,     standard_variables%cell_thickness)
       call self%register_dependency(self%id_bdepth,  standard_variables%bottom_depth)
-      call self%register_dependency(self%id_atco2,   standard_variables%mole_fraction_of_carbon_dioxide_in_air) ! 'atco2', '1e-6', 'atmospheric carbon concentration')
+      call self%register_dependency(self%id_atco2,   standard_variables%mole_fraction_of_carbon_dioxide_in_air) ! 
       call self%register_dependency(self%id_sst,     standard_variables%temperature)
       call self%register_dependency(self%id_sss,     standard_variables%practical_salinity)
       call self%register_dependency(self%id_ws,      standard_variables%wind_speed)
