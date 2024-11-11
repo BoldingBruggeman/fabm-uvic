@@ -174,6 +174,7 @@ contains
          po4P = jmax*p/(k1p + p) 
          u_P = min(avej, po4P)
          no3flag = 1.0_rk
+         o2_roc = 0.0_rk
          if (self%nitrogen) then
              _GET_(self%id_no3, no3)
              no3flag = 0.5_rk + sign(0.5_rk,no3 - trcmin)
@@ -181,10 +182,9 @@ contains
                  morp = 0.0_rk
                  npp = u_P*phyt * no3flag*nflag
                  no3upt = no3/(self%k1n + no3)*npp * no3flag*nflag ! nitrate uptake
-                 o2_roc =    (npp - no3upt)*1.25e-3_rk    ! check units of oxygen tracer
+                 o2_roc =   - o2_roc + (npp - no3upt)*1.25e-3_rk    ! check units of oxygen tracer
                  alk_roc = - (npp - no3upt)*1e-3_rk
                  
-                 _ADD_SOURCE_(self%id_oxi,  o2_roc)
                  _ADD_SOURCE_(self%id_alk, alk_roc)
                  _ADD_SOURCE_(self%id_no3, morpt-no3upt)
              else
@@ -194,12 +194,14 @@ contains
                  _ADD_SOURCE_(self%id_no3, morpt-npp)
              endif             
          endif
+         o2_roc = o2_roc - (morpt-npp)*redptn*redotp
          
          ! update state variables
          _ADD_SOURCE_(self%id_phosphorus, (morpt-npp)*redptn)
-         _ADD_SOURCE_(self%id_phyt,        npp-morpt-morp)
-         _ADD_SOURCE_(self%id_det,         morp)
-         _ADD_SOURCE_(self%id_calc,        morp*self%capr*redctn)
+         _ADD_SOURCE_(self%id_phyt,       npp-morpt-morp)
+         _ADD_SOURCE_(self%id_det,        morp)
+         _ADD_SOURCE_(self%id_calc,       morp*self%capr*redctn)
+         _ADD_SOURCE_(self%id_oxi,        o2_roc)
          
          ! diagnostic output
          _SET_DIAGNOSTIC_(self%id_morp_out, morp)

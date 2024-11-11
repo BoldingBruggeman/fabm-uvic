@@ -105,7 +105,7 @@ contains
       real(rk) :: c14, c14_roc
       
       _LOOP_BEGIN_
-         ! apply phosphorus sources to actual phosphorus state var.
+         ! apply phosphorus sources/sinks to actual phosphorus state var.
          _GET_(self%id_phosphorus_sms,    p_release)
          _ADD_SOURCE_(self%id_phosphorus, p_release) !apply phosphorus sms to real phosphorus state variable
          
@@ -118,19 +118,19 @@ contains
          
          alk_roc = -p_release*redntp*1.e-3_rk-calc_prod*2._rk
          
-         ! calculate and apply oxygen use and denitrification
+         ! apply oxygen sources/sinks to actual oxygen state var.
          _GET_(self%id_o2, o2)
          _GET_(self%id_o2_sms, o2_demand)
          
          fo2 = 0.5_rk*tanh(o2*1000._rk - 5._rk) ! limit oxygen consumption below concentrations of 5umol/kg as recommended in OCMIP
          
-         so2 = (p_release*redotp+o2_demand)*(0.5_rk + fo2)
-         
+         so2 = (o2_demand)*(0.5_rk + fo2)
          _ADD_SOURCE_(self%id_o2,         so2)
+         
          if (self%nitrogen) then
              _GET_(self%id_no3, no3)
              no3flag = 0.5_rk+sign(0.5_rk,no3-trcmin)
-             deni = max(0._rk, 800._rk*no3flag*so2*(0.5_rk - fo2))
+             deni = max(0._rk, 800._rk*no3flag*-so2*(0.5_rk - fo2))
              _ADD_SOURCE_(self%id_no3,          -deni)
              _SET_DIAGNOSTIC_(self%id_deni,      deni)
              
@@ -201,7 +201,7 @@ contains
       real(rk) :: dic_in, ta_in, o2_in, co2_in, t_in, s_in, pt_in, sit_in, atmpres, pHlo, pHhi, co2star
       real(rk) :: dco2star, pCO2, hplus, CO3, Omega_c, Omega_a, ws, dicflx, c14, aice, ao, dc14ccn, sspH
       real(rk) :: ssCO3, ssOc, ssOa, sspCO2, scco2, piston_vel, c14flx, f1, f2, f3, f4, f5, o2sat, o2flx
-      real(rk) :: sco2, piston_o2
+      real(rk) :: sco2, piston_o2, o2flag
       
       
       _SURFACE_LOOP_BEGIN_
@@ -271,8 +271,12 @@ contains
          ! Convert from ml/l to mol/m^3
          o2sat = o2sat/22391.6_rk*1000.0_rk
          
+         !o2flag = 0.5_rk+sign(0.5_rk,o2sat)
+
+         
          o2flx = piston_o2*(o2sat - o2_in)
 
+         
          _ADD_SURFACE_FLUX_(self%id_o2, o2flx)  
          _ADD_SURFACE_FLUX_(self%id_dic, dicflx)  
          _ADD_SURFACE_FLUX_(self%id_c14, c14flx)  

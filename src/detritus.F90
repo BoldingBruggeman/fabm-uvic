@@ -132,6 +132,7 @@ contains
          flux = rain_org/(redctn*100.0_rk) !  backwards conversion from umol C cm-3 to mmol N m-3 and from cm s-1 to m s-1
          
          _ADD_BOTTOM_FLUX_(self%id_det,   -flux)
+         _ADD_BOTTOM_FLUX_(self%id_oxi,   -flux*redptn*redotp)
          _ADD_BOTTOM_FLUX_(self%id_phosphorus, redptn*flux)
          if (self%nitrogen) then
              _ADD_BOTTOM_FLUX_(self%id_no3, flux)
