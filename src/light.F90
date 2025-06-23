@@ -65,7 +65,7 @@ contains
          sw_par = self%par*swr*exp(ztt*(self%kw/rctheta))
          
          
-         ztt  = -1._rk*(depth+dzt*0.5_rk) !check sign of depth
+         ztt  = -1._rk*(depth+dzt*0.5_rk)
          phin = phyt*dzt
          f1 = (-self%kw - self%kc*phyt)
          

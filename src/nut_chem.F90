@@ -187,7 +187,7 @@ contains
              rain_cal = intcalc*rcab - intcalc*rcak*dzt
          endif
          
-         _ADD_SOURCE_(self%id_dic, dic_roc) !NIC: NOT FINISHED we still need to interact with the sediment (line 742 of tracer.f90) !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+         _ADD_SOURCE_(self%id_dic, dic_roc) 
          _ADD_SOURCE_(self%id_alk, alk_roc)
          _SET_DIAGNOSTIC_(self%id_rain_cal,rain_cal)
       _DOWNWARD_LOOP_END_
@@ -275,7 +275,6 @@ contains
 
          
          o2flx = piston_o2*(o2sat - o2_in)
-
          
          _ADD_SURFACE_FLUX_(self%id_o2, o2flx)  
          _ADD_SURFACE_FLUX_(self%id_dic, dicflx)  
