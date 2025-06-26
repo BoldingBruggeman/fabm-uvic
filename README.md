@@ -9,12 +9,19 @@ Model code has been kept as faithful to the original code as possible.
 The code has been split up into a number of submodules of which several are optional and can be in- or excluded by adjusting the runtime configuration (fabm.yaml), no code change or recompilation needed. Below is a list of included modules:
 
 detritus.F90 | Remineralization and export of biological production
+
 light.F90 | Light absorption and flux-at-depth
+
 nut_chem.F90 | nitrogen, phospherous and carbon chemistry and gas exchange
+
 phytoplankton.F90 | Phytoplankton
+
 sediment.F90 | Solving sediment dynamics and burial
+
 shared.F90 | Common parameters
+
 solar.F90 | Surface solar radiation model
+
 zooplankton.F90 | Zooplankton production and grazing
 
 How to build
