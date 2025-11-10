@@ -184,6 +184,7 @@ contains
                  no3upt = no3/(self%k1n + no3)*npp * no3flag*nflag ! nitrate uptake
                  o2_roc =   - o2_roc + (npp - no3upt)*1.25e-3_rk    ! check units of oxygen tracer
                  alk_roc = - (npp - no3upt)*1e-3_rk
+                 no3P = jmax
                  
                  _ADD_SOURCE_(self%id_alk, alk_roc)
                  _ADD_SOURCE_(self%id_no3, morpt-no3upt)
